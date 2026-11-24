@@ -160,7 +160,8 @@ public class HlavneOkno : Form
         rezim = Rezim.Lista;
         lista.Umiestni(wa, false);
         int ty0 = lista.Top, ty1 = lista.Bottom;
-        bool efekt = Visible && WindowState != FormWindowState.Minimized && Screen.FromHandle(Handle).DeviceName == cs.DeviceName;
+        var ms = Screen.FromHandle(Handle);
+        bool efekt = Visible && WindowState != FormWindowState.Minimized && (ms.DeviceName == cs.DeviceName || cs.Bounds.X >= ms.Bounds.Right - 1);
         Action poZbaleni = () =>
         {
             UkazListu(true);
@@ -174,10 +175,11 @@ public class HlavneOkno : Form
         {
             try
             {
-                var r = Rectangle.Intersect(Bounds, cs.Bounds);
+                var obl = Rectangle.Union(ms.Bounds, cs.Bounds);
+                var r = Rectangle.Intersect(Bounds, ms.Bounds);
                 var bmp = Genie.Snimka(r);
                 Hide(); TopMost = false;
-                new Genie(bmp, r, cs.Bounds, wa.Right, ty0, ty1, poZbaleni).Show();
+                new Genie(bmp, r, obl, wa.Right, ty0, ty1, poZbaleni).Show();
                 return;
             }
             catch (Exception e) { Program.Log("genie " + e.Message); }

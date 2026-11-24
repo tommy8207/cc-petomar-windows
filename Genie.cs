@@ -46,6 +46,13 @@ public class Genie : Form
     }
     protected override bool ShowWithoutActivation => true;
 
+    // okno cez dva monitory: nemeniť veľkosť pri zmene DPI
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == 0x02E0) { m.Result = IntPtr.Zero; return; } // WM_DPICHANGED
+        base.WndProc(ref m);
+    }
+
     protected override void OnShown(EventArgs e) { base.OnShown(e); sw.Start(); t.Start(); }
 
     protected override void OnPaintBackground(PaintEventArgs e) => e.Graphics.Clear(Color.Magenta);
