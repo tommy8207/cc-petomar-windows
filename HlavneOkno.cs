@@ -24,6 +24,7 @@ public class HlavneOkno : Form
     System.Windows.Forms.Timer anim;
     ToolStripMenuItem miAuto;
     bool koniec, chybaStranka;
+    int pokusy;
     readonly bool startLista;
     Rezim rezim = Rezim.Plne;
     Rectangle plne;
@@ -273,13 +274,15 @@ public class HlavneOkno : Form
         cw.NavigationCompleted += (s, e) =>
         {
             if (chybaStranka) return;
-            if (!e.IsSuccess)
-            {
-                Program.Log("nacitanie zlyhalo " + e.WebErrorStatus);
-                chybaStranka = true;
-                cw.NavigateToString(Skript.Chyba(Program.Nast.Server));
-                tmrSpat.Start();
-            }
+            if (e.IsSuccess) { pokusy = 0; return; }
+            // zrušené načítanie (stránka sa sama prepla / obnovila) nie je chyba
+            if (e.WebErrorStatus == CoreWebView2WebErrorStatus.OperationCanceled || e.WebErrorStatus == CoreWebView2WebErrorStatus.ValidAuthenticationCredentialsRequired) return;
+            pokusy++;
+            Program.Log("nacitanie zlyhalo " + e.WebErrorStatus + " (pokus " + pokusy + ")");
+            if (pokusy <= 3) { tmrSpat.Interval = 2000; tmrSpat.Stop(); tmrSpat.Start(); return; }
+            chybaStranka = true;
+            cw.NavigateToString(Skript.Chyba(Program.Nast.Server));
+            tmrSpat.Interval = 10000; tmrSpat.Stop(); tmrSpat.Start();
         };
         cw.ProcessFailed += (s, e) => { Program.Log("webview padol " + e.ProcessFailedKind); tmrSpat.Start(); };
         Nacitaj();
