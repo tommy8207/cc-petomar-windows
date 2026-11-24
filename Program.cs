@@ -11,7 +11,7 @@ namespace CCPetomar;
 static class Program
 {
     // ZVÝŠIŤ PRI KAŽDEJ NOVEJ VERZII PROGRAMU (podľa nej sa volá súbor cc-petomar-win-vN.exe)
-    public const int VERZIA = 6;
+    public const int VERZIA = 7;
     public const string NAZOV = "CC Petomar";
 
     static readonly string Local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -48,7 +48,7 @@ static class Program
             return;
         }
 
-        try { var old = ExeCiel + ".old"; if (File.Exists(old)) File.Delete(old); } catch { }
+        Uprac();
         if (Nast.Autostart) Autostart(true);
 
         ApplicationConfiguration.Initialize();
@@ -79,13 +79,9 @@ static class Program
         {
             bool prva = !File.Exists(ExeCiel);
             Directory.CreateDirectory(ProgDir);
-            if (!prva)
-            {
-                var old = ExeCiel + ".old";
-                try { if (File.Exists(old)) File.Delete(old); } catch { }
-                File.Move(ExeCiel, old, true);   // bežiaci .exe sa dá premenovať
-            }
-            File.Copy(zdroj, ExeCiel, true);
+            Uprac();
+            if (!prva) Skus(() => File.Move(ExeCiel, StaraCesta()));   // bežiaci .exe sa dá premenovať
+            Skus(() => File.Copy(zdroj, ExeCiel, true));
             Zastupca(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), NAZOV + ".lnk"));
             Zastupca(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), NAZOV + ".lnk"));
             Nast.Autostart = true; Nast.Uloz(); Autostart(true);
@@ -155,21 +151,43 @@ static class Program
             { if (rucne) okno.Hlasenie("Program nie je nainštalovaný – aktualizácia sa nedá.", true); return; }
             if (!okno.Otazka("Je pripravená nová verzia programu CC Petomar: v" + v + " (máte v" + VERZIA + ").\n\nAktualizovať teraz? Program sa na pár sekúnd zavrie a znova otvorí.")) return;
 
-            string nove = Path.Combine(Data, "CCPetomar-nova.exe");
+            Uprac();
+            string nove = Path.Combine(Data, "CCPetomar-nova-v" + v + "-" + DateTime.Now.Ticks + ".exe");
             using (var st = await http.GetStreamAsync(Nast.Server + "/win-exe"))
             using (var f = File.Create(nove)) await st.CopyToAsync(f);
             if (new FileInfo(nove).Length < 1_000_000) throw new Exception("stiahnutý súbor je poškodený");
-            File.Move(ExeCiel, ExeCiel + ".old", true);
-            File.Move(nove, ExeCiel, true);
+            string stara = StaraCesta();
+            Skus(() => File.Move(ExeCiel, stara));
+            try { Skus(() => File.Move(nove, ExeCiel)); }
+            catch { try { File.Move(stara, ExeCiel); } catch { } throw; }
             Log("aktualizacia na v" + v);
             Process.Start(new ProcessStartInfo(ExeCiel, "--cakaj") { UseShellExecute = false, WorkingDirectory = ProgDir });
             okno.Ukonci();
         }
         catch (Exception e)
         {
-            Log("aktualizacia " + e.Message);
+            Log("aktualizacia " + e.GetType().Name + ": " + e.Message);
             if (rucne) okno.Hlasenie("Aktualizácia sa nepodarila: " + e.Message, true);
-            try { if (!File.Exists(ExeCiel) && File.Exists(ExeCiel + ".old")) File.Move(ExeCiel + ".old", ExeCiel); } catch { }
+        }
+    }
+
+    // staré verzie: každá vlastné meno (prepísať bežiaci/zamknutý súbor Windows nedovolí)
+    static string StaraCesta() => ExeCiel + ".old-" + DateTime.Now.Ticks;
+
+    // zmazať staré verzie a nedokončené stiahnutia (čo sa nedá, ostane na budúce)
+    static void Uprac()
+    {
+        try { foreach (var f in Directory.GetFiles(ProgDir, "CCPetomar.exe.old*")) try { File.Delete(f); } catch { } } catch { }
+        try { foreach (var f in Directory.GetFiles(Data, "CCPetomar-nova*.exe")) try { File.Delete(f); } catch { } } catch { }
+    }
+
+    // súbor môže chvíľu držať antivírus – skúsiť viackrát
+    static void Skus(Action a)
+    {
+        for (int i = 0; ; i++)
+        {
+            try { a(); return; }
+            catch (Exception e) when (i < 9 && (e is IOException || e is UnauthorizedAccessException)) { Thread.Sleep(500); }
         }
     }
 
