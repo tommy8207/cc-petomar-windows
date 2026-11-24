@@ -10,6 +10,8 @@ public class Lista : Form
     int zmeskane;
     readonly Icon ikona;
     readonly ToolTip tip = new();
+    Image logo;
+    public Image Logo { set { logo = value; Invalidate(); } }
 
     public Lista()
     {
@@ -20,7 +22,7 @@ public class Lista : Form
         BackColor = Color.FromArgb(17, 27, 34);
         DoubleBuffered = true;
         Cursor = Cursors.Hand;
-        Size = new Size(LogicalToDeviceUnits(46), LogicalToDeviceUnits(190));
+        Size = new Size(LogicalToDeviceUnits(46), LogicalToDeviceUnits(290));
         try { ikona = Icon.ExtractAssociatedIcon(Environment.ProcessPath); } catch { }
         tip.SetToolTip(this, "CC Petomar – klik = otvoriť");
         MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) Klik?.Invoke(); };
@@ -83,6 +85,19 @@ public class Lista : Form
             using (var b = new SolidBrush(Color.FromArgb(248, 113, 113))) g.FillEllipse(b, rc);
             using var f = new Font("Segoe UI", 9f, FontStyle.Bold);
             TextRenderer.DrawText(g, zmeskane > 99 ? "99" : zmeskane.ToString(), f, rc, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        }
+        // malé logo Petomar – otočené zdola nahor
+        int lh = LogicalToDeviceUnits(116), lt = LogicalToDeviceUnits(124);
+        if (logo != null)
+        {
+            float dlz = lh, hr = Math.Min(w - 10 * u, dlz * logo.Height / logo.Width);
+            dlz = Math.Min(dlz, hr * logo.Width / logo.Height);
+            var st = g.Save();
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.TranslateTransform(w / 2f, lt + lh / 2f);
+            g.RotateTransform(-90);
+            g.DrawImage(logo, -dlz / 2, -hr / 2, dlz, hr);
+            g.Restore(st);
         }
         using var f2 = new Font("Segoe UI", 14f, FontStyle.Bold);
         TextRenderer.DrawText(g, "‹", f2, new Rectangle(0, Height - LogicalToDeviceUnits(40), w, LogicalToDeviceUnits(30)), Color.FromArgb(43, 191, 193), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);

@@ -281,8 +281,22 @@ public class HlavneOkno : Form
         };
         cw.ProcessFailed += (s, e) => { Program.Log("webview padol " + e.ProcessFailedKind); tmrSpat.Start(); };
         Nacitaj();
+        _ = NacitajLogo();
         tmrAkt.Start();
         _ = Task.Delay(30000).ContinueWith(_ => BeginInvoke(new Action(async () => await Program.Aktualizacia(this, false))));
+    }
+
+    async Task NacitajLogo()
+    {
+        try
+        {
+            using var h = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+            var b = await h.GetByteArrayAsync(Program.Nast.Server.TrimEnd('/') + "/logo-dark.png");
+            using var ms = new MemoryStream(b);
+            using var im = Image.FromStream(ms);
+            lista.Logo = new Bitmap(im);
+        }
+        catch (Exception e) { Program.Log("logo " + e.Message); }
     }
 
     void Nacitaj()
