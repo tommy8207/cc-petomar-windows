@@ -1,0 +1,30 @@
+name: Postav EXE
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Cislo verzie
+        id: v
+        shell: pwsh
+        run: |
+          $m = Select-String -Path Program.cs -Pattern 'VERZIA = (\d+);'
+          $n = $m.Matches[0].Groups[1].Value
+          "n=$n" >> $env:GITHUB_OUTPUT
+      - name: Zostavit
+        run: dotnet publish CCPetomar.csproj -c Release -o out
+      - name: Premenovat
+        shell: pwsh
+        run: |
+          Rename-Item out/CCPetomar.exe "cc-petomar-win-v${{ steps.v.outputs.n }}.exe"
+          Get-ChildItem out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cc-petomar-win-v${{ steps.v.outputs.n }}
+          path: out/cc-petomar-win-v*.exe
