@@ -19,7 +19,7 @@ public class HlavneOkno : Form
     readonly Lista lista = new();
     readonly System.Windows.Forms.Timer tmrSpat = new() { Interval = 10000 };
     readonly System.Windows.Forms.Timer tmrTop = new() { Interval = 4000 };
-    readonly System.Windows.Forms.Timer tmrAkt = new() { Interval = 2 * 3600 * 1000 };
+    readonly System.Windows.Forms.Timer tmrAkt = new() { Interval = 60 * 1000 }; // nová verzia programu – kontrola každú minútu
     readonly System.Windows.Forms.Timer tmrZbal = new() { Interval = 600 };
     System.Windows.Forms.Timer anim;
     ToolStripMenuItem miAuto;
