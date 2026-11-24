@@ -11,7 +11,7 @@ namespace CCPetomar;
 static class Program
 {
     // ZVÝŠIŤ PRI KAŽDEJ NOVEJ VERZII PROGRAMU (podľa nej sa volá súbor cc-petomar-win-vN.exe)
-    public const int VERZIA = 1;
+    public const int VERZIA = 2;
     public const string NAZOV = "CC Petomar";
 
     static readonly string Local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -52,7 +52,7 @@ static class Program
         if (Nast.Autostart) Autostart(true);
 
         ApplicationConfiguration.Initialize();
-        var okno = new HlavneOkno();
+        var okno = new HlavneOkno(args.Contains("--lista"));
 
         // signály od iných kópií: ukázať okno / skončiť (pri aktualizácii)
         var ukaz = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\CCPetomar_ukaz");
@@ -128,7 +128,7 @@ static class Program
         try
         {
             using var k = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
-            if (on) k.SetValue(NAZOV, "\"" + ExeCiel + "\"");
+            if (on) k.SetValue(NAZOV, "\"" + ExeCiel + "\" --lista");
             else if (k.GetValue(NAZOV) != null) k.DeleteValue(NAZOV);
         }
         catch (Exception e) { Log("autostart " + e.Message); }
@@ -199,6 +199,7 @@ public class Nastavenia
     public int W { get; set; } = 1280;
     public int H { get; set; } = 860;
     public bool Max { get; set; }
+    public int PasW { get; set; }
     public bool TipLista { get; set; }
 
     static string Cesta => Path.Combine(Program.Data, "nastavenia.json");

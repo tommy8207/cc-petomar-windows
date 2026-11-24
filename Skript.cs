@@ -28,7 +28,8 @@ static class Skript
     if(init)post({typ:'sprava',id:s.id,od:String(MENA[s.od]||s.od),text:String(s.text||'')});
    });
    init=true;
-   var st=JSON.stringify({typ:'stav',ja:ME,meno:MENA[ME]||'',hovor:!!(h&&(f==='zvoni'||f==='hovor'||f==='hlaska'||f==='int'))});
+   var karta=!!(p||(typeof myCB==='function'&&myCB())||window.IC);
+   var st=JSON.stringify({typ:'stav',ja:ME,meno:MENA[ME]||'',hovor:!!(h&&(f==='zvoni'||f==='hovor'||f==='hlaska'||f==='int')),karta:karta,st:(typeof opStav==='function'?opStav(ME):''),ms:(typeof msOpenCount==='function'?msOpenCount():0)});
    if(st!==posl){posl=st;post(JSON.parse(st))}
   }catch(e){}
  }
