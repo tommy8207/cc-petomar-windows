@@ -8,7 +8,18 @@ static class Skript
 (function(){
  if(!window.chrome||!chrome.webview)return;
  var post=function(o){try{chrome.webview.postMessage(o)}catch(e){}};
- var zvonil={},videne={},init=false,posl='';
+ var zvonil={},videne={},init=false,posl='',hkluc='';
+ // tlačidlo „Lišta“ v hlavičke CC úplne vpravo
+ function lbtn(){
+  if(document.getElementById('ccLista'))return;
+  var a=document.querySelector('header .acts');if(!a)return;
+  var b=document.createElement('button');b.type='button';b.id='ccLista';b.className='hbtn';
+  b.title='Zbaliť CC do lišty na okraji obrazovky';b.setAttribute('aria-label','Lišta');
+  b.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="15" y1="3" x2="15" y2="21"></line><polyline points="8 9 11 12 8 15"></polyline></svg><span class="lbl">Lišta</span>';
+  b.onclick=function(){post({typ:'lista'})};
+  a.appendChild(b);
+ }
+ setInterval(lbtn,700);
  function kontrola(){
   try{
    if(typeof pickCall!=='function'||!window.S||!window.ME)return;
@@ -22,13 +33,18 @@ static class Skript
      post({typ:'hovor',id:id,f:f,kto:String(kto||'')});
     }
    }
+   // pri hovore (zvoní / prijatý / spätné volanie / interný) obraz vždy úplne hore
+   var cb=typeof myCB==='function'?myCB():null;
+   var hk=h&&f!=='koniec'?(String(h.id||h.ch||'')+'|'+f):(cb&&!cb.koniec?('cb'+cb.id+'|'+cb.faza):'');
+   if(hk&&hk!==hkluc){try{window.scrollTo({top:0,behavior:'smooth'})}catch(e){}}
+   hkluc=hk;
    (S.spravy||[]).forEach(function(s){
     if(s.komu!==ME||s.precitane||videne[s.id])return;
     videne[s.id]=1;
     if(init)post({typ:'sprava',id:s.id,od:String(MENA[s.od]||s.od),text:String(s.text||'')});
    });
    init=true;
-   var karta=!!(p||(typeof myCB==='function'&&myCB())||window.IC);
+   var karta=!!(p||cb||window.IC);
    var st=JSON.stringify({typ:'stav',ja:ME,meno:MENA[ME]||'',hovor:!!(h&&(f==='zvoni'||f==='hovor'||f==='hlaska'||f==='int')),karta:karta,st:(typeof opStav==='function'?opStav(ME):''),ms:(typeof msOpenCount==='function'?msOpenCount():0)});
    if(st!==posl){posl=st;post(JSON.parse(st))}
   }catch(e){}

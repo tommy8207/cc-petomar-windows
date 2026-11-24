@@ -8,8 +8,9 @@ namespace CCPetomar;
 
 // Tri režimy okna:
 //  Plne  – bežné okno CC
-//  Pas   – úzky pás CC na pravom okraji, nad všetkými oknami (pri hovore sa vysunie sám)
-//  Lista – CC zbalené do lišty na pravom okraji (✕ alebo minimalizovať)
+//  Pas   – pás CC na pravej polovici zvoleného monitora, nad všetkými oknami (pri hovore sa vysunie sám)
+//  Lista – CC zbalené do lišty na pravom okraji zvoleného monitora (✕, minimalizovať alebo tlačidlo Lišta)
+// Pás sa zasunie len na klik (Lišta / ✕ / –), nie samo.
 public class HlavneOkno : Form
 {
     enum Rezim { Plne, Pas, Lista }
@@ -20,10 +21,9 @@ public class HlavneOkno : Form
     readonly System.Windows.Forms.Timer tmrSpat = new() { Interval = 10000 };
     readonly System.Windows.Forms.Timer tmrTop = new() { Interval = 4000 };
     readonly System.Windows.Forms.Timer tmrAkt = new() { Interval = 60 * 1000 }; // nová verzia programu – kontrola každú minútu
-    readonly System.Windows.Forms.Timer tmrZbal = new() { Interval = 600 };
     System.Windows.Forms.Timer anim;
     ToolStripMenuItem miAuto;
-    bool koniec, chybaStranka, karta, pasAuto;
+    bool koniec, chybaStranka;
     readonly bool startLista;
     Rezim rezim = Rezim.Plne;
     Rectangle plne;
@@ -61,6 +61,23 @@ public class HlavneOkno : Form
         miAuto = new ToolStripMenuItem("Spúšťať so systémom Windows") { Checked = n.Autostart, CheckOnClick = true };
         miAuto.CheckedChanged += (s, e) => { Program.Nast.Autostart = miAuto.Checked; Program.Nast.Uloz(); Program.Autostart(miAuto.Checked); };
         m.Items.Add(miAuto);
+        var miMon = new ToolStripMenuItem("Lišta na monitore");
+        miMon.DropDownItems.Add("…");
+        miMon.DropDownOpening += (s, e) =>
+        {
+            miMon.DropDownItems.Clear();
+            var cs = CielScreen();
+            int i = 0;
+            foreach (var sc in Screen.AllScreens.OrderBy(x => x.Bounds.X).ThenBy(x => x.Bounds.Y))
+            {
+                i++;
+                var dn = sc.DeviceName;
+                var it = new ToolStripMenuItem("Monitor " + i + (sc.Primary ? " (hlavný)" : "") + " – " + sc.Bounds.Width + "×" + sc.Bounds.Height) { Checked = dn == cs.DeviceName };
+                it.Click += (s2, e2) => { Program.Nast.Monitor = dn; Program.Nast.Uloz(); Premiestni(); };
+                miMon.DropDownItems.Add(it);
+            }
+        };
+        m.Items.Add(miMon);
         m.Items.Add("Hľadať novú verziu", null, async (s, e) => await Program.Aktualizacia(this, true));
         m.Items.Add("Adresa servera…", null, (s, e) => ZmenServer());
         m.Items.Add(new ToolStripSeparator());
@@ -76,8 +93,7 @@ public class HlavneOkno : Form
         tmrSpat.Tick += (s, e) => { tmrSpat.Stop(); Nacitaj(); };
         tmrTop.Tick += (s, e) => { tmrTop.Stop(); if (rezim == Rezim.Plne) TopMost = false; };
         tmrAkt.Tick += async (s, e) => await Program.Aktualizacia(this, false);
-        tmrZbal.Tick += (s, e) => { tmrZbal.Stop(); SkusZbalit(); };
-        Deactivate += (s, e) => { if (rezim == Rezim.Pas) { tmrZbal.Stop(); tmrZbal.Start(); } };
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (s, e) => { try { BeginInvoke(new Action(Premiestni)); } catch { } };
         Load += async (s, e) => await Start();
         Shown += (s, e) =>
         {
@@ -90,8 +106,16 @@ public class HlavneOkno : Form
     }
 
     // ---------- režimy okna ----------
-    Rectangle WA => Screen.FromHandle(Handle).WorkingArea;
-    int PasW => Program.Nast.PasW >= 360 ? Math.Min(Program.Nast.PasW, 1000) : LogicalToDeviceUnits(440);
+    static Screen CielScreen() => Screen.AllScreens.FirstOrDefault(x => x.DeviceName == Program.Nast.Monitor) ?? Screen.PrimaryScreen;
+    static Rectangle WA => CielScreen().WorkingArea;
+    static int PasW => Math.Max(380, WA.Width / 2);
+
+    void Premiestni()
+    {
+        var wa = WA;
+        if (rezim == Rezim.Lista && lista.Visible) lista.Umiestni(wa, false);
+        if (rezim == Rezim.Pas) { anim?.Stop(); Bounds = new Rectangle(wa.Right - PasW, wa.Top, PasW, wa.Height); }
+    }
 
     void ZapamatajPlne()
     {
@@ -129,30 +153,45 @@ public class HlavneOkno : Form
     void DoListy()
     {
         if (rezim == Rezim.Lista) return;
-        tmrZbal.Stop();
+        anim?.Stop();
         ZapamatajPlne();
         UlozPolohu();
-        var wa = WA;
-        if (WindowState != FormWindowState.Normal) { WindowState = FormWindowState.Normal; Bounds = wa; }
-        rezim = Rezim.Lista; pasAuto = false;
-        Posun(this, Left, wa.Right, () =>
+        var cs = CielScreen(); var wa = cs.WorkingArea;
+        rezim = Rezim.Lista;
+        lista.Umiestni(wa, false);
+        int ty0 = lista.Top, ty1 = lista.Bottom;
+        bool efekt = Visible && WindowState != FormWindowState.Minimized && Screen.FromHandle(Handle).DeviceName == cs.DeviceName;
+        Action poZbaleni = () =>
         {
-            Hide(); TopMost = false;
             UkazListu(true);
             if (!Program.Nast.TipLista)
             {
                 Program.Nast.TipLista = true; Program.Nast.Uloz();
                 Balon("CC Petomar je vpravo na okraji obrazovky", "Klik na lištu CC = otvoriť. Pri hovore sa CC vysunie samo. Úplne ukončiť: pravý klik na ikonu CC pri hodinách → Ukončiť program.", ToolTipIcon.Info);
             }
-        });
+        };
+        if (efekt)
+        {
+            try
+            {
+                var r = Rectangle.Intersect(Bounds, cs.Bounds);
+                var bmp = Genie.Snimka(r);
+                Hide(); TopMost = false;
+                new Genie(bmp, r, cs.Bounds, wa.Right, ty0, ty1, poZbaleni).Show();
+                return;
+            }
+            catch (Exception e) { Program.Log("genie " + e.Message); }
+        }
+        if (WindowState != FormWindowState.Normal) { WindowState = FormWindowState.Normal; Bounds = wa; }
+        if (!Visible) { TopMost = false; poZbaleni(); return; }
+        Posun(this, Left, wa.Right, () => { Hide(); TopMost = false; poZbaleni(); });
     }
 
     void DoPasu(bool auto)
     {
-        tmrZbal.Stop();
+        if (auto) NaVrch();
         if (rezim == Rezim.Pas)
         {
-            pasAuto |= auto;
             TopMost = true; Win.DoPopredia(Handle); Activate();
             return;
         }
@@ -163,7 +202,7 @@ public class HlavneOkno : Form
         int w = PasW;
         Bounds = new Rectangle(wa.Right, wa.Top, w, wa.Height);
         TopMost = true;
-        rezim = Rezim.Pas; pasAuto = auto;
+        rezim = Rezim.Pas;
         if (!Visible) Show();
         Win.DoPopredia(Handle);
         Posun(this, wa.Right, wa.Right - w, () => { Win.DoPopredia(Handle); Activate(); });
@@ -171,9 +210,7 @@ public class HlavneOkno : Form
 
     void DoPlna()
     {
-        tmrZbal.Stop();
         lista.Hide();
-        if (rezim == Rezim.Pas) Program.Nast.PasW = Width;
         if (rezim != Rezim.Plne)
         {
             anim?.Stop();
@@ -182,18 +219,16 @@ public class HlavneOkno : Form
             if (plne.Width > 100) Bounds = plne;
             else { var wa = WA; Bounds = new Rectangle(wa.X + 40, wa.Y + 40, Math.Min(1280, wa.Width - 80), Math.Min(860, wa.Height - 80)); }
             if (plneMax) WindowState = FormWindowState.Maximized;
-            rezim = Rezim.Plne; pasAuto = false;
+            rezim = Rezim.Plne;
         }
         if (!Visible) Show();
         Win.DoPopredia(Handle); Activate();
     }
 
-    // pás sa zasunie, keď operátor klikne inam a nie je otvorená karta hovoru
-    void SkusZbalit()
+    // obraz CC úplne hore (hlavička + karta hovoru)
+    void NaVrch()
     {
-        if (rezim != Rezim.Pas || karta) return;
-        if (Win.Popredie() == Handle) return;
-        DoListy();
+        try { wv.CoreWebView2?.ExecuteScriptAsync("try{window.scrollTo(0,0)}catch(e){}"); } catch { }
     }
 
     protected override void WndProc(ref Message m)
@@ -279,18 +314,17 @@ public class HlavneOkno : Form
                     Balon("Správa od: " + Str("od"), Str("text"), ToolTipIcon.Info);
                     Blikaj();
                     break;
+                case "lista":
+                    DoListy();
+                    break;
                 case "stav":
                     Hovor = Bool("hovor");
-                    karta = Bool("karta");
                     int ms = r.TryGetProperty("ms", out var mv) && mv.ValueKind == JsonValueKind.Number ? mv.GetInt32() : 0;
                     lista.Nastav(Str("st"), ms);
                     var ja = Str("meno");
                     var txt = Program.NAZOV + (ja != "" ? " · " + ja + " " + Str("ja") : "");
                     tray.Text = txt.Length > 63 ? txt[..63] : txt;
                     Text = txt;
-                    // karta hovoru sa zavrela → pás sa po chvíli zasunie (ak operátor pracuje inde)
-                    if (!karta && rezim == Rezim.Pas && pasAuto) { pasAuto = false; tmrZbal.Stop(); tmrZbal.Interval = 2500; tmrZbal.Start(); }
-                    else tmrZbal.Interval = 600;
                     break;
             }
         }
@@ -306,6 +340,7 @@ public class HlavneOkno : Form
     public void Ukaz(bool popredie)
     {
         if (!popredie) { DoPlna(); return; }
+        NaVrch();
         if (rezim == Rezim.Plne)
         {
             if (!Visible) Show();
@@ -336,7 +371,6 @@ public class HlavneOkno : Form
     {
         var n = Program.Nast;
         ZapamatajPlne();
-        if (rezim == Rezim.Pas && Width >= 360) n.PasW = Width;
         n.Max = plneMax;
         if (plne.Width > 100) { n.X = plne.X; n.Y = plne.Y; n.W = plne.Width; n.H = plne.Height; }
         n.Uloz();
