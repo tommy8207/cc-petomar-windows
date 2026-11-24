@@ -2,6 +2,8 @@ name: Postav EXE
 on:
   push:
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: windows-latest
@@ -28,3 +30,13 @@ jobs:
         with:
           name: cc-petomar-win-v${{ steps.v.outputs.n }}
           path: out/cc-petomar-win-v*.exe
+      - name: Zverejnit (Release – odtial si ho stiahne cc-server)
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $t = "win-v${{ steps.v.outputs.n }}"
+          $f = "out/cc-petomar-win-v${{ steps.v.outputs.n }}.exe"
+          gh release view $t *> $null
+          if ($LASTEXITCODE -eq 0) { gh release upload $t $f --clobber } else { gh release create $t $f --title "CC Petomar pre Windows v${{ steps.v.outputs.n }}" --notes "Automaticky zostavene z $env:GITHUB_SHA" --latest }
