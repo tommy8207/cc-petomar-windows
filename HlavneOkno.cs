@@ -21,7 +21,7 @@ public class HlavneOkno : Form
     readonly System.Windows.Forms.Timer tmrSpat = new() { Interval = 10000 };
     readonly System.Windows.Forms.Timer tmrTop = new() { Interval = 4000 };
     readonly System.Windows.Forms.Timer tmrAkt = new() { Interval = 60 * 1000 }; // nová verzia programu – kontrola každú minútu
-    ToolStripMenuItem miAuto;
+    ToolStripMenuItem miAuto, miMob;
     bool koniec, chybaStranka;
     int pokusy;
     readonly bool startLista;
@@ -55,7 +55,11 @@ public class HlavneOkno : Form
         tray.Text = Program.NAZOV;
         tray.Visible = true;
         var m = new ContextMenuStrip();
-        m.Items.Add("Otvoriť CC", null, (s, e) => DoPlna()).Font = new Font(m.Font, FontStyle.Bold);
+        m.Items.Add("Otvoriť CC", null, (s, e) => DoPasu(false)).Font = new Font(m.Font, FontStyle.Bold);
+        m.Items.Add("Otvoriť celé okno", null, (s, e) => DoPlna());
+        miMob = new ToolStripMenuItem("Mobilný náhľad (šírka telefónu)") { Checked = n.Mobil };
+        miMob.Click += (s, e) => PrepniMobil();
+        m.Items.Add(miMob);
         m.Items.Add("Obnoviť stránku", null, (s, e) => Nacitaj());
         m.Items.Add(new ToolStripSeparator());
         miAuto = new ToolStripMenuItem("Spúšťať so systémom Windows") { Checked = n.Autostart, CheckOnClick = true };
@@ -87,7 +91,7 @@ public class HlavneOkno : Form
             if (Otazka("Naozaj ukončiť CC Petomar?\n\nKým je program vypnutý, okno pri hovore nevyskočí a nezaznejú správy od kolegov.")) Ukonci();
         });
         tray.ContextMenuStrip = m;
-        tray.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) DoPlna(); };
+        tray.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) DoPasu(false); };
         tray.BalloonTipClicked += (s, e) => DoPasu(false);
 
         tmrSpat.Tick += (s, e) => { tmrSpat.Stop(); Nacitaj(); };
@@ -109,7 +113,8 @@ public class HlavneOkno : Form
     static Screen[] Monitory() => Screen.AllScreens.OrderBy(x => x.Bounds.X).ThenBy(x => x.Bounds.Y).ToArray();
     static Screen CielScreen() => Screen.AllScreens.FirstOrDefault(x => x.DeviceName == Program.Nast.Monitor) ?? Screen.PrimaryScreen;
     static Rectangle WA => CielScreen().WorkingArea;
-    static int PasW => Math.Max(380, WA.Width / 2);
+    // pás = pol monitora; mobilný náhľad = šírka telefónu
+    int PasW => Program.Nast.Mobil ? LogicalToDeviceUnits(412) : Math.Max(380, WA.Width / 2);
     Rectangle PasRect { get { var wa = WA; return new Rectangle(wa.Right - PasW, wa.Top, PasW, wa.Height); } }
 
     Animacia anim;
@@ -123,6 +128,15 @@ public class HlavneOkno : Form
         var wa = WA;
         if (rezim == Rezim.Lista && lista.Visible) lista.Umiestni(wa, false);
         if (rezim == Rezim.Pas && !animuje) Bounds = PasRect;
+        PosliMonitory();
+    }
+
+    void PrepniMobil()
+    {
+        Program.Nast.Mobil = !Program.Nast.Mobil; Program.Nast.Uloz();
+        miMob.Checked = Program.Nast.Mobil;
+        if (rezim == Rezim.Pas && !animuje) Bounds = PasRect;
+        else if (rezim != Rezim.Pas) DoPasu(false);
         PosliMonitory();
     }
 
@@ -142,7 +156,7 @@ public class HlavneOkno : Form
             int akt = Array.FindIndex(M, x => x.DeviceName == c.DeviceName) + 1;
             var opis = string.Join("; ", M.Select(x => x.DeviceName + " " + x.Bounds.Width + "x" + x.Bounds.Height + (x.Primary ? " hlavny" : "")));
             if (opis != monLog) { monLog = opis; Program.Log("monitory (" + M.Length + "): " + opis); }
-            wv.CoreWebView2?.ExecuteScriptAsync("window.__ccMon={n:" + M.Length + ",akt:" + akt + "}");
+            wv.CoreWebView2?.ExecuteScriptAsync("window.__ccMon={n:" + M.Length + ",akt:" + akt + ",mob:" + (Program.Nast.Mobil ? "true" : "false") + "}");
         }
         catch { }
     }
@@ -424,6 +438,9 @@ public class HlavneOkno : Form
                 case "lista":
                     DoListy();
                     break;
+                case "mobil":
+                    PrepniMobil();
+                    break;
                 case "monitor":
                     if (r.TryGetProperty("i", out var mi) && mi.ValueKind == JsonValueKind.Number) ZvolMonitor(mi.GetInt32());
                     break;
@@ -449,7 +466,7 @@ public class HlavneOkno : Form
     // popredie = hovor: z lišty sa vysunie pás nad všetky okná; celé okno sa dá navrch
     public void Ukaz(bool popredie)
     {
-        if (!popredie) { DoPlna(); return; }
+        if (!popredie) { DoPasu(false); return; }
         NaVrch();
         if (rezim == Rezim.Plne)
         {

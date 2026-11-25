@@ -11,7 +11,7 @@ namespace CCPetomar;
 static class Program
 {
     // ZVÝŠIŤ PRI KAŽDEJ NOVEJ VERZII PROGRAMU (podľa nej sa volá súbor cc-petomar-win-vN.exe)
-    public const int VERZIA = 10;
+    public const int VERZIA = 11;
     public const string NAZOV = "CC Petomar";
 
     static readonly string Local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -219,6 +219,7 @@ public class Nastavenia
     public bool Max { get; set; }
     public int PasW { get; set; }
     public string Monitor { get; set; } = "";
+    public bool Mobil { get; set; }
     public bool TipLista { get; set; }
 
     static string Cesta => Path.Combine(Program.Data, "nastavenia.json");
