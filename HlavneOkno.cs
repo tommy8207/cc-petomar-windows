@@ -21,7 +21,6 @@ public class HlavneOkno : Form
     readonly System.Windows.Forms.Timer tmrSpat = new() { Interval = 10000 };
     readonly System.Windows.Forms.Timer tmrTop = new() { Interval = 4000 };
     readonly System.Windows.Forms.Timer tmrAkt = new() { Interval = 60 * 1000 }; // nová verzia programu – kontrola každú minútu
-    System.Windows.Forms.Timer anim;
     ToolStripMenuItem miAuto;
     bool koniec, chybaStranka;
     int pokusy;
@@ -107,15 +106,42 @@ public class HlavneOkno : Form
     }
 
     // ---------- režimy okna ----------
+    static Screen[] Monitory() => Screen.AllScreens.OrderBy(x => x.Bounds.X).ThenBy(x => x.Bounds.Y).ToArray();
     static Screen CielScreen() => Screen.AllScreens.FirstOrDefault(x => x.DeviceName == Program.Nast.Monitor) ?? Screen.PrimaryScreen;
     static Rectangle WA => CielScreen().WorkingArea;
     static int PasW => Math.Max(380, WA.Width / 2);
+    Rectangle PasRect { get { var wa = WA; return new Rectangle(wa.Right - PasW, wa.Top, PasW, wa.Height); } }
+
+    Animacia anim;
+    Bitmap posledna;          // posledná snímka okna – na plynulé vyrolovanie z lišty
+    bool animuje;             // počas efektu sa ďalší prechod len zapamätá
+    Action dalsi;
 
     void Premiestni()
     {
         var wa = WA;
         if (rezim == Rezim.Lista && lista.Visible) lista.Umiestni(wa, false);
-        if (rezim == Rezim.Pas) { anim?.Stop(); Bounds = new Rectangle(wa.Right - PasW, wa.Top, PasW, wa.Height); }
+        if (rezim == Rezim.Pas && !animuje) Bounds = PasRect;
+        PosliMonitory();
+    }
+
+    void ZvolMonitor(int i)
+    {
+        var M = Monitory();
+        if (i < 1 || i > M.Length) return;
+        Program.Nast.Monitor = M[i - 1].DeviceName; Program.Nast.Uloz();
+        Premiestni();
+    }
+
+    void PosliMonitory()
+    {
+        try
+        {
+            var M = Monitory(); var c = CielScreen();
+            int akt = Array.FindIndex(M, x => x.DeviceName == c.DeviceName) + 1;
+            wv.CoreWebView2?.ExecuteScriptAsync("window.__ccMon={n:" + M.Length + ",akt:" + akt + "}");
+        }
+        catch { }
     }
 
     void ZapamatajPlne()
@@ -126,20 +152,19 @@ public class HlavneOkno : Form
         if (b.Width > 100) plne = b;
     }
 
-    void Posun(Form f, int z, int k, Action hotovo)
+    Rectangle PlneRect()
     {
-        anim?.Stop(); anim?.Dispose();
-        var sw = Stopwatch.StartNew();
-        var t = new System.Windows.Forms.Timer { Interval = 10 };
-        anim = t;
+        if (plneMax) return Screen.FromRectangle(plne.Width > 100 ? plne : WA).WorkingArea;
+        if (plne.Width > 100) return plne;
+        var wa = WA; return new Rectangle(wa.X + 40, wa.Y + 40, Math.Min(1280, wa.Width - 80), Math.Min(860, wa.Height - 80));
+    }
+
+    // posun malého okna (lišta) – plynulo, v rytme obrazovky
+    void Posun(Form f, int z, int k, int ms, Action hotovo)
+    {
+        anim?.Zastav();
         f.Left = z;
-        t.Tick += (s, e) =>
-        {
-            double p = Math.Min(1, sw.ElapsedMilliseconds / 230.0), q = 1 - Math.Pow(1 - p, 3);
-            f.Left = (int)(z + (k - z) * q);
-            if (p >= 1) { t.Stop(); if (anim == t) anim = null; t.Dispose(); hotovo?.Invoke(); }
-        };
-        t.Start();
+        anim = Animacia.Spusti(this, ms, p => { double q = 1 - Math.Pow(1 - p, 3); f.Left = (int)Math.Round(z + (k - z) * q); }, hotovo);
     }
 
     void UkazListu(bool animuj)
@@ -148,21 +173,40 @@ public class HlavneOkno : Form
         lista.Umiestni(wa, animuj);
         lista.Show();
         lista.TopMost = true;
-        if (animuj) Posun(lista, wa.Right, wa.Right - lista.Width, null);
+        if (animuj) Posun(lista, wa.Right, wa.Right - lista.Width, 260, null);
     }
 
+    Rectangle ListaRect(Rectangle wa)
+    {
+        lista.Umiestni(wa, false);
+        return lista.Bounds;
+    }
+
+    // snímka okna (PArgb – najrýchlejšie kreslenie)
+    Bitmap Snimka(Rectangle r)
+    {
+        var b = new Bitmap(r.Width, r.Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+        using var g = Graphics.FromImage(b);
+        g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+        return b;
+    }
+
+    void Hotovo()
+    {
+        animuje = false;
+        var d = dalsi; dalsi = null; d?.Invoke();
+    }
+
+    // ✕ / – / šípka → okno sa „vcucne“ do lišty
     void DoListy()
     {
+        if (animuje) { dalsi = DoListy; return; }
         if (rezim == Rezim.Lista) return;
-        anim?.Stop();
+        anim?.Zastav();
         ZapamatajPlne();
         UlozPolohu();
-        var cs = CielScreen(); var wa = cs.WorkingArea;
+        var cs = CielScreen(); var wa = cs.WorkingArea; var lr = ListaRect(wa);
         rezim = Rezim.Lista;
-        lista.Umiestni(wa, false);
-        int ty0 = lista.Top, ty1 = lista.Bottom;
-        var ms = Screen.FromHandle(Handle);
-        bool efekt = Visible && WindowState != FormWindowState.Minimized && (ms.DeviceName == cs.DeviceName || cs.Bounds.X >= ms.Bounds.Right - 1);
         Action poZbaleni = () =>
         {
             UkazListu(true);
@@ -171,56 +215,97 @@ public class HlavneOkno : Form
                 Program.Nast.TipLista = true; Program.Nast.Uloz();
                 Balon("CC Petomar je vpravo na okraji obrazovky", "Klik na lištu CC = otvoriť. Pri hovore sa CC vysunie samo. Úplne ukončiť: pravý klik na ikonu CC pri hodinách → Ukončiť program.", ToolTipIcon.Info);
             }
+            Hotovo();
         };
+        var ms = Screen.FromHandle(Handle);
+        bool efekt = Visible && WindowState != FormWindowState.Minimized && (ms.DeviceName == cs.DeviceName || cs.Bounds.X >= ms.Bounds.Right - 1);
         if (efekt)
         {
             try
             {
-                var obl = Rectangle.Union(ms.Bounds, cs.Bounds);
                 var r = Rectangle.Intersect(Bounds, ms.Bounds);
-                var bmp = Genie.Snimka(r);
+                var bmp = Snimka(r);
+                posledna?.Dispose(); posledna = (Bitmap)bmp.Clone();
+                animuje = true;
+                var g = new Genie(bmp, r, lr, wa.Right, false, poZbaleni);
+                g.Show(); g.Update();
                 Hide(); TopMost = false;
-                new Genie(bmp, r, obl, wa.Right, ty0, ty1, poZbaleni).Show();
                 return;
             }
-            catch (Exception e) { Program.Log("genie " + e.Message); }
+            catch (Exception e) { Program.Log("genie " + e.Message); animuje = false; }
         }
-        if (WindowState != FormWindowState.Normal) { WindowState = FormWindowState.Normal; Bounds = wa; }
-        if (!Visible) { TopMost = false; poZbaleni(); return; }
-        Posun(this, Left, wa.Right, () => { Hide(); TopMost = false; poZbaleni(); });
+        Hide(); TopMost = false;
+        poZbaleni();
+    }
+
+    // z lišty → okno vyrolované z lišty (pás alebo celé okno)
+    void ZListy(Rectangle ciel, bool navrch, Action koniec)
+    {
+        var wa = WA; var lr = lista.Visible ? lista.Bounds : ListaRect(wa);
+        anim?.Zastav();
+        lista.Hide();
+        WindowState = FormWindowState.Normal;
+        Bounds = ciel;                     // okno sa pripraví skryté v cieľovej veľkosti
+        TopMost = navrch;
+        Action ukaz = () =>
+        {
+            Show();
+            Win.DoPopredia(Handle); Activate();
+            koniec?.Invoke();
+            Hotovo();
+        };
+        if (posledna != null)
+        {
+            try
+            {
+                animuje = true;
+                new Genie((Bitmap)posledna.Clone(), ciel, lr, wa.Right, true, ukaz).Show();
+                return;
+            }
+            catch (Exception e) { Program.Log("genie spat " + e.Message); animuje = false; }
+        }
+        ukaz();
     }
 
     void DoPasu(bool auto)
     {
         if (auto) NaVrch();
+        if (animuje) { dalsi = () => DoPasu(auto); return; }
         if (rezim == Rezim.Pas)
         {
+            if (!Visible) Show();
             TopMost = true; Win.DoPopredia(Handle); Activate();
             return;
         }
-        ZapamatajPlne();
-        var wa = WA;
-        lista.Hide();
-        if (WindowState != FormWindowState.Normal) WindowState = FormWindowState.Normal;
-        int w = PasW;
-        Bounds = new Rectangle(wa.Right, wa.Top, w, wa.Height);
-        TopMost = true;
+        if (rezim == Rezim.Plne)
+        {
+            // celé okno → pás (bez efektu)
+            ZapamatajPlne();
+            WindowState = FormWindowState.Normal;
+            Bounds = PasRect; TopMost = true; rezim = Rezim.Pas;
+            if (!Visible) Show();
+            Win.DoPopredia(Handle); Activate();
+            return;
+        }
         rezim = Rezim.Pas;
-        if (!Visible) Show();
-        Win.DoPopredia(Handle);
-        Posun(this, wa.Right, wa.Right - w, () => { Win.DoPopredia(Handle); Activate(); });
+        ZListy(PasRect, true, () => { if (auto) NaVrch(); });
     }
 
     void DoPlna()
     {
-        lista.Hide();
-        if (rezim != Rezim.Plne)
+        if (animuje) { dalsi = DoPlna; return; }
+        if (rezim == Rezim.Lista)
         {
-            anim?.Stop();
+            rezim = Rezim.Plne;
+            var c = PlneRect();
+            ZListy(c, false, () => { if (plneMax) WindowState = FormWindowState.Maximized; });
+            return;
+        }
+        if (rezim == Rezim.Pas)
+        {
             TopMost = false;
             WindowState = FormWindowState.Normal;
-            if (plne.Width > 100) Bounds = plne;
-            else { var wa = WA; Bounds = new Rectangle(wa.X + 40, wa.Y + 40, Math.Min(1280, wa.Width - 80), Math.Min(860, wa.Height - 80)); }
+            Bounds = PlneRect();
             if (plneMax) WindowState = FormWindowState.Maximized;
             rezim = Rezim.Plne;
         }
@@ -274,7 +359,7 @@ public class HlavneOkno : Form
         cw.NavigationCompleted += (s, e) =>
         {
             if (chybaStranka) return;
-            if (e.IsSuccess) { pokusy = 0; return; }
+            if (e.IsSuccess) { pokusy = 0; PosliMonitory(); return; }
             // zrušené načítanie (stránka sa sama prepla / obnovila) nie je chyba
             if (e.WebErrorStatus == CoreWebView2WebErrorStatus.OperationCanceled || e.WebErrorStatus == CoreWebView2WebErrorStatus.ValidAuthenticationCredentialsRequired) return;
             pokusy++;
@@ -335,6 +420,9 @@ public class HlavneOkno : Form
                     break;
                 case "lista":
                     DoListy();
+                    break;
+                case "monitor":
+                    if (r.TryGetProperty("i", out var mi) && mi.ValueKind == JsonValueKind.Number) ZvolMonitor(mi.GetInt32());
                     break;
                 case "stav":
                     Hovor = Bool("hovor");
@@ -442,6 +530,8 @@ static class Win
     [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
     [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
     [DllImport("user32.dll")] static extern bool FlashWindowEx(ref FLASHWINFO f);
+    [DllImport("dwmapi.dll")] static extern int DwmFlush();
+    public static void Snimok() { try { DwmFlush(); } catch { } }
 
     [StructLayout(LayoutKind.Sequential)]
     struct FLASHWINFO { public uint cbSize; public IntPtr hwnd; public uint dwFlags; public uint uCount; public uint dwTimeout; }

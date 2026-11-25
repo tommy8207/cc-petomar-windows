@@ -11,7 +11,7 @@ namespace CCPetomar;
 static class Program
 {
     // ZVÝŠIŤ PRI KAŽDEJ NOVEJ VERZII PROGRAMU (podľa nej sa volá súbor cc-petomar-win-vN.exe)
-    public const int VERZIA = 8;
+    public const int VERZIA = 9;
     public const string NAZOV = "CC Petomar";
 
     static readonly string Local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);

@@ -9,17 +9,25 @@ static class Skript
  if(!window.chrome||!chrome.webview)return;
  var post=function(o){try{chrome.webview.postMessage(o)}catch(e){}};
  var zvonil={},videne={},init=false,posl='',hkluc='';
- // tlačidlo „Lišta“ v hlavičke CC úplne vpravo
- function lbtn(){
-  if(document.getElementById('ccLista'))return;
-  var a=document.querySelector('header .acts');if(!a)return;
-  var b=document.createElement('button');b.type='button';b.id='ccLista';b.className='hbtn';
-  b.title='Zbaliť CC do lišty na okraji obrazovky';b.setAttribute('aria-label','Lišta');
-  b.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="15" y1="3" x2="15" y2="21"></line><polyline points="8 9 11 12 8 15"></polyline></svg><span class="lbl">Lišta</span>';
-  b.onclick=function(){post({typ:'lista'})};
-  a.appendChild(b);
+ // v9: šípka na ľavom okraji okna (1/3 výšky) = schovať CC do lišty; pod ňou monitory 1, 2… = kam dať lištu
+ var SVG_MON=function(n){return '<svg width="18" height="15" viewBox="0 0 24 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="13" rx="2"></rect><path d="M8 19h8M12 15v4"></path><text x="12" y="11.5" text-anchor="middle" font-size="8.5" font-weight="700" fill="currentColor" stroke="none" font-family="Segoe UI,sans-serif">'+n+'</text></svg>'};
+ function ltab(){
+  var t=document.getElementById('ccTab');
+  if(!window.ME||!document.body){if(t)t.style.display='none';return}
+  if(!t){
+   t=document.createElement('div');t.id='ccTab';
+   t.style.cssText='position:fixed;left:0;top:33vh;z-index:45;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 3px;background:var(--surface);border:1px solid var(--line);border-left:none;border-radius:0 12px 12px 0;box-shadow:var(--shadow)';
+   t.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;if(b.dataset.m)post({typ:'monitor',i:Number(b.dataset.m)});else post({typ:'lista'})});
+   document.body.appendChild(t);
+  }
+  t.style.display='flex';
+  var M=window.__ccMon||{n:1,akt:1},k=M.n+'|'+M.akt;if(t._k===k)return;t._k=k;
+  var bs='display:flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--surface2);cursor:pointer;padding:0;';
+  var h='<button type="button" title="Schovať CC do bočnej lišty" aria-label="Schovať do lišty" style="'+bs+'width:24px;height:38px;border-radius:9px;color:var(--accent);border-color:var(--accent)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"></path></svg></button>';
+  if(M.n>1)for(var i=1;i<=M.n;i++){var on=i===M.akt;h+='<button type="button" data-m="'+i+'" aria-pressed="'+on+'" title="Lišta na monitore '+i+(on?' (teraz)':'')+'" style="'+bs+'width:24px;height:24px;border-radius:7px;'+(on?'background:var(--accent);color:var(--accentInk);border-color:var(--accent)':'color:var(--muted)')+'">'+SVG_MON(i)+'</button>'}
+  t.innerHTML=h;
  }
- setInterval(lbtn,700);
+ setInterval(ltab,500);
  function kontrola(){
   try{
    if(typeof pickCall!=='function'||!window.S||!window.ME)return;
