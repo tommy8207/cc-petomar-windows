@@ -9,14 +9,14 @@ static class Skript
  if(!window.chrome||!chrome.webview)return;
  var post=function(o){try{chrome.webview.postMessage(o)}catch(e){}};
  var zvonil={},videne={},init=false,posl='',hkluc='';
- // v9: šípka na ľavom okraji okna (1/3 výšky) = schovať CC do lišty; pod ňou monitory 1, 2… = kam dať lištu
+ // v10: šípka na pravom okraji okna (1/3 výšky) = schovať CC do lišty; pod ňou monitory 1, 2… = kam dať lištu
  var SVG_MON=function(n){return '<svg width="18" height="15" viewBox="0 0 24 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="13" rx="2"></rect><path d="M8 19h8M12 15v4"></path><text x="12" y="11.5" text-anchor="middle" font-size="8.5" font-weight="700" fill="currentColor" stroke="none" font-family="Segoe UI,sans-serif">'+n+'</text></svg>'};
  function ltab(){
   var t=document.getElementById('ccTab');
   if(!window.ME||!document.body){if(t)t.style.display='none';return}
   if(!t){
    t=document.createElement('div');t.id='ccTab';
-   t.style.cssText='position:fixed;left:0;top:33vh;z-index:45;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 3px;background:var(--surface);border:1px solid var(--line);border-left:none;border-radius:0 12px 12px 0;box-shadow:var(--shadow)';
+   t.style.cssText='position:fixed;right:0;top:33vh;z-index:45;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 3px;background:var(--surface);border:1px solid var(--line);border-right:none;border-radius:12px 0 0 12px;box-shadow:var(--shadow)';
    t.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;if(b.dataset.m)post({typ:'monitor',i:Number(b.dataset.m)});else post({typ:'lista'})});
    document.body.appendChild(t);
   }

@@ -113,7 +113,8 @@ public class HlavneOkno : Form
     Rectangle PasRect { get { var wa = WA; return new Rectangle(wa.Right - PasW, wa.Top, PasW, wa.Height); } }
 
     Animacia anim;
-    Bitmap posledna;          // posledná snímka okna – na plynulé vyrolovanie z lišty
+    Bitmap posledna;
+    string monLog = "";          // posledná snímka okna – na plynulé vyrolovanie z lišty
     bool animuje;             // počas efektu sa ďalší prechod len zapamätá
     Action dalsi;
 
@@ -139,6 +140,8 @@ public class HlavneOkno : Form
         {
             var M = Monitory(); var c = CielScreen();
             int akt = Array.FindIndex(M, x => x.DeviceName == c.DeviceName) + 1;
+            var opis = string.Join("; ", M.Select(x => x.DeviceName + " " + x.Bounds.Width + "x" + x.Bounds.Height + (x.Primary ? " hlavny" : "")));
+            if (opis != monLog) { monLog = opis; Program.Log("monitory (" + M.Length + "): " + opis); }
             wv.CoreWebView2?.ExecuteScriptAsync("window.__ccMon={n:" + M.Length + ",akt:" + akt + "}");
         }
         catch { }
