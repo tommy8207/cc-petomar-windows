@@ -17,7 +17,7 @@ static class Skript
   if(!t){
    t=document.createElement('div');t.id='ccTab';
    t.style.cssText='position:fixed;right:0;bottom:33vh;z-index:45;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 3px;background:var(--surface);border:1px solid var(--line);border-right:none;border-radius:12px 0 0 12px;box-shadow:var(--shadow)';
-   t.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;if(b.dataset.m)post({typ:'monitor',i:Number(b.dataset.m)});else if(b.dataset.v)post({typ:'mobil'});else post({typ:'lista'})});
+   t.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;if(b.dataset.m)post({typ:'monitor',i:Number(b.dataset.m)});else if(b.dataset.v)post({typ:'mobil'});else if(b.dataset.r)post({typ:'obnov'});else post({typ:'lista'})});
    document.body.appendChild(t);
   }
   t.style.display='flex';
@@ -26,6 +26,7 @@ static class Skript
   var h='<button type="button" title="Schovať CC do bočnej lišty" aria-label="Schovať do lišty" style="'+bs+'width:24px;height:38px;border-radius:9px;color:var(--accent);border-color:var(--accent)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"></path></svg></button>';
   if(M.n>1)for(var i=1;i<=M.n;i++){var on=i===M.akt;h+='<button type="button" data-m="'+i+'" aria-pressed="'+on+'" title="Lišta na monitore '+i+(on?' (teraz)':'')+'" style="'+bs+'width:24px;height:24px;border-radius:7px;'+(on?'background:var(--accent);color:var(--accentInk);border-color:var(--accent)':'color:var(--muted)')+'">'+SVG_MON(i)+'</button>'}
   h+='<button type="button" data-v="1" aria-pressed="'+!!M.mob+'" title="'+(M.mob?'Späť na zobrazenie pre počítač':'Mobilný náhľad – CC v šírke telefónu')+'" style="'+bs+'width:24px;height:26px;border-radius:7px;margin-top:2px;'+(M.mob?'background:var(--accent);color:var(--accentInk);border-color:var(--accent)':'color:var(--muted)')+'">'+(M.mob?'<svg width="15" height="14" viewBox="0 0 24 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="13" rx="2"></rect><path d="M8 19h8M12 15v4"></path></svg>':'<svg width="12" height="16" viewBox="0 0 14 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="1.5" width="11" height="19" rx="2.5"></rect><path d="M5.5 17.5h3"></path></svg>')+'</button>';
+  h+='<button type="button" data-r="1" title="Obnoviť stránku CC" aria-label="Obnoviť stránku" style="'+bs+'width:24px;height:24px;border-radius:7px;margin-top:2px;color:var(--muted)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"></path><path d="M21 3v5h-5"></path></svg></button>';
   t.innerHTML=h;
  }
  setInterval(ltab,500);

@@ -438,6 +438,9 @@ public class HlavneOkno : Form
                 case "lista":
                     DoListy();
                     break;
+                case "obnov":
+                    Nacitaj();
+                    break;
                 case "mobil":
                     PrepniMobil();
                     break;
